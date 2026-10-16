@@ -1,0 +1,194 @@
+import pygame
+import random
+import os
+import time
+
+# Inicializa o Pygame
+pygame.init()
+
+#musica
+time.sleep(5) #tempo para sincronizar a musica e o jogo
+
+pygame.mixer.init() #inicia o mixer
+
+pasta = os.path.dirname(os.path.abspath(__file__)) #descobre onde esta o arquivo
+musica = os.path.join(pasta, "MUSICA(tetris com música).mp3") #caminho completo até a música
+
+pygame.mixer.music.load(musica) #carrega a música
+pygame.mixer.music.set_volume(0.5) #volume de 0 a 1 
+pygame.mixer.music.play(-1) #toca em loop
+
+# Configurações da tela e grade
+TAMANHO_BLOCO = 30
+COLUNAS = 10
+LINHAS = 20
+
+tela = pygame.display.set_mode((COLUNAS * TAMANHO_BLOCO, LINHAS * TAMANHO_BLOCO))
+pygame.display.set_caption("Tetris Clássico")
+
+relogio = pygame.time.Clock()
+fonte = pygame.font.SysFont(None, 30)
+
+# Cores das peças (RGB)
+AZUL_CLARO   = (0, 255, 255)   # I
+AMARELO      = (255, 255, 0)   # O
+ROXO         = (128, 0, 255)   # T
+LARANJA      = (255, 165, 0)   # L
+AZUL_ESCURO  = (0, 0, 255)    # J
+VERDE        = (0, 255, 0)     # S
+VERMELHO     = (255, 0, 0)     # Z
+
+# Formatos das peças (1 para bloco preenchido, 0 para vazio)
+MODELOS_PECAS = [
+    {"formato": [[1,1,1,1]], "cor": AZUL_CLARO},
+    {"formato": [[1,1],[1,1]], "cor": AMARELO},
+    {"formato": [[0,1,0],[1,1,1]], "cor": ROXO},
+    {"formato": [[1,0,0],[1,1,1]], "cor": LARANJA},
+    {"formato": [[0,0,1],[1,1,1]], "cor": AZUL_ESCURO},
+    {"formato": [[0,1,1],[1,1,0]], "cor": VERDE},
+    {"formato": [[1,1,0],[0,1,1]], "cor": VERMELHO}
+]
+
+# Matriz de controle do tabuleiro
+tabuleiro = [[0] * COLUNAS for _ in range(LINHAS)]
+
+def criar_nova_peca():
+    """Gera uma peça aleatória no topo central."""
+    peca = random.choice(MODELOS_PECAS)
+    return {
+        "formato": peca["formato"], 
+        "cor": peca["cor"], 
+        "x": 3,
+        "y": 0
+    }
+
+def verificar_colisao(peca):
+    """Detecta colisões com as bordas do tabuleiro ou blocos fixados."""
+    for y, linha in enumerate(peca["formato"]):
+        for x, bloco in enumerate(linha):
+            if bloco:
+                px, py = peca["x"] + x, peca["y"] + y
+                if px < 0 or px >= COLUNAS or py >= LINHAS or (py >= 0 and tabuleiro[py][px]):
+                    return True
+    return False
+
+def fixar_peca(peca):
+    """Transfere a peça atual de forma definitiva para a matriz do tabuleiro."""
+    for y, linha in enumerate(peca["formato"]):
+        for x, bloco in enumerate(linha):
+            if bloco:
+                tabuleiro[peca["y"] + y][peca["x"] + x] = peca["cor"]
+
+def eliminar_linhas():
+    """Remove linhas cheias e adiciona novas linhas vazias no topo."""
+    global tabuleiro
+    linhas_vivas = [linha for linha in tabuleiro if 0 in linha]
+    sumidas = LINHAS - len(linhas_vivas)
+    tabuleiro = [[0] * COLUNAS for _ in range(sumidas)] + linhas_vivas
+
+def tentar_mover(peca, dx, dy):
+    """Aplica o movimento de translação e desfaz em caso de colisão."""
+    peca["x"] += dx
+    peca["y"] += dy
+    if verificar_colisao(peca):
+        peca["x"] -= dx
+        peca["y"] -= dy
+        return False
+    return True
+
+def fixar_e_proxima_peca():
+    #Faz a transição da peça atual para o tabuleiro e gera a próxima.
+    global peca_atual, pecas_colocadas, atraso_queda, fim_de_jogo
+    fixar_peca(peca_atual)
+    pecas_colocadas += 1
+    eliminar_linhas()
+    peca_atual = criar_nova_peca()
+    
+    # Aumenta a dificuldade diminuindo 1ms de atraso a cada peça (mínimo de 30ms)
+    atraso_queda = max(100, atraso_queda - 1)
+    
+    if verificar_colisao(peca_atual):
+        fim_de_jogo = True
+
+def reiniciar():
+    #Reseta o estado do jogo para começar uma nova partida.
+    global tabuleiro, peca_atual, pecas_colocadas, tempo_queda, tempo_movimento, fim_de_jogo, atraso_queda
+    tabuleiro = [[0] * COLUNAS for _ in range(LINHAS)]
+    peca_atual = criar_nova_peca()
+    pecas_colocadas = 0
+    tempo_queda = tempo_movimento = 0
+    fim_de_jogo = False
+    atraso_queda = 500
+
+# Estado inicial do jogo
+peca_atual = criar_nova_peca()
+pecas_colocadas = 0
+tempo_queda = 0          # Temporizador de gravidade
+tempo_movimento = 0      # Temporizador das setas
+fim_de_jogo = False
+atraso_queda = 500       # Velocidade de queda inicial (em ms)
+jogo_rodando = True
+
+# Loop principal
+while jogo_rodando:
+    dt = relogio.tick(120)  # Limita a execução a 60 FPS
+    tempo_queda += dt
+    tempo_movimento += dt
+
+    # Captura de eventos de clique único
+    for evento in pygame.event.get():
+        if evento.type == pygame.QUIT:
+            jogo_rodando = False
+            
+        if evento.type == pygame.KEYDOWN:
+            if evento.key == pygame.K_r:
+                reiniciar()
+                
+            # Rotação da peça ativa
+            elif evento.key == pygame.K_UP and not fim_de_jogo:
+                antigo = peca_atual["formato"]
+                peca_atual["formato"] = [list(c) for c in zip(*antigo[::-1])]
+                if verificar_colisao(peca_atual):
+                    peca_atual["formato"] = antigo
+
+    # Entradas contínuas (segurar teclas de direção)
+    teclas = pygame.key.get_pressed()
+    if not fim_de_jogo and tempo_movimento >= 60:
+        tempo_movimento = 0
+        if teclas[pygame.K_LEFT]: tentar_mover(peca_atual, -1, 0)
+        if teclas[pygame.K_RIGHT]: tentar_mover(peca_atual, 1, 0)
+        if teclas[pygame.K_DOWN]: tentar_mover(peca_atual, 0, 1)
+
+    # Gravidade natural (Queda automática por tempo)
+    if not fim_de_jogo and tempo_queda >= atraso_queda:
+        tempo_queda = 0
+        if not tentar_mover(peca_atual, 0, 1):
+            fixar_e_proxima_peca()
+
+    # Renderização visual
+    tela.fill((15, 15, 15))
+
+    # Desenha o tabuleiro com recuo de 1px para criar o quadriculado
+    for y in range(LINHAS):
+        for x in range(COLUNAS):
+            if tabuleiro[y][x]:
+                px = x * TAMANHO_BLOCO + 1
+                py = y * TAMANHO_BLOCO + 1
+                pygame.draw.rect(tela, tabuleiro[y][x], (px, py, TAMANHO_BLOCO - 2, TAMANHO_BLOCO - 2))
+
+    # Desenha a peça ativa com recuo de 1px para criar o quadriculado
+    for y, linha in enumerate(peca_atual["formato"]):
+        for x, bloco in enumerate(linha):
+            if bloco:
+                px = (peca_atual["x"] + x) * TAMANHO_BLOCO + 1
+                py = (peca_atual["y"] + y) * TAMANHO_BLOCO + 1
+                pygame.draw.rect(tela, peca_atual["cor"], (px, py, TAMANHO_BLOCO - 2, TAMANHO_BLOCO - 2))
+
+    # Exibição de texto (Interface)
+    tela.blit(fonte.render(f"Peças: {pecas_colocadas}", True, (255, 255, 255)), (10, 10))
+    if fim_de_jogo:
+        tela.blit(fonte.render("Game Over - R para reiniciar", True, (255, 255, 255)), (10, 40))
+    
+    pygame.display.flip()
+
+pygame.quit()
