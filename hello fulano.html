@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bom dia</title>
+</head 
+<body>
+    <h1>Bom dia</h1>
+    <h2>esse é meu projeto HTML</h2>
+
+    <p>Olá, escreva seu nome aqui em baixo e receba uma mensagem:</p>
+
+    <input type="text" id="nome" placeholder="Digite seu nome">
+
+    <button onclick="PRINT()">Enviar</button>
+
+    <p id="mensagem"></p>
+
+    <script>
+        function PRINT() {
+            let nome = document.getElementById("nome").value;
+
+            document.getElementById("mensagem").innerHTML =
+                "Bom dia, " + nome + "! Seja bem-vindo(a).";
+        }
+    </script>
+
+</body>
+</html>
